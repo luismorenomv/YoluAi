@@ -20,10 +20,11 @@ def run_flask():
     app_flask.run(host="0.0.0.0", port=port)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 ¡Hola! Soy Yolu Ai\n\nSolo mándame un link de Erome y te lo descargo.")
+    nombre = update.effective_user.first_name
+    await update.message.reply_text(f"Hola, {nombre} 👋\n\nMándame un link de Erome y te lo descargo directo.")
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📖 Solo pega el link de Erome aquí y lo bajo.")
+    await update.message.reply_text("📖 Solo pega el link de Erome aquí.")
 
 def get_medias(url):
     headers = {
@@ -79,7 +80,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 r = requests.get(media_url, headers=headers, stream=True, timeout=90)
 
                 if 'text/html' in r.headers.get('Content-Type',''):
-                    continue
+                    continue # Era una pagina de error, no un video
 
                 ext = ".mp4" if ".mp4" in media_url else ".jpg"
                 with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
