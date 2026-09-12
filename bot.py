@@ -1,3 +1,5 @@
+from keep_alive import keep_alive
+keep_alive()
 import os, re, yt_dlp
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
