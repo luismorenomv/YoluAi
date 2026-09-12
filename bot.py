@@ -1,5 +1,4 @@
 import os
-import re
 import tempfile
 from threading import Thread
 from flask import Flask
@@ -20,12 +19,9 @@ def run_flask():
 
 async def erome_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
-    
     if "erome.com" not in url:
         return
-
     await update.message.reply_text("⏳ Descargando de Erome...")
-
     try:
         with tempfile.TemporaryDirectory() as tmp:
             ydl_opts = {
@@ -37,12 +33,9 @@ async def erome_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 file_path = ydl.prepare_filename(info)
-
-            await update.message.reply_video(
-                video=open(file_path, 'rb'),
-                caption="✅ Listo"
-            )
-
+            
+            with open(file_path, 'rb') as f:
+                await update.message.reply_video(video=f, caption="✅ Listo")
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
