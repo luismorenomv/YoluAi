@@ -1,53 +1,57 @@
-import os, re, tempfile, shutil, threading, glob
+import os
+import re
+import tempfile
+from threading import Thread
 from flask import Flask
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import yt_dlp
+from telegram import Update
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
 TOKEN = os.getenv("BOT_TOKEN")
-flask_app = Flask(__name__)
+app_flask = Flask(__name__)
 
-@flask_app.route('/')
+@app_flask.route('/')
 def home():
-    return "Yolu activo"
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"Hola {update.effective_user.first_name} Envía el link 📥")
-
-async def dl(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text or ""
-    m = re.search(r'https?://\S+', text)
-    if not m: return
-    url = m.group(0).strip()
-    status = await update.message.reply_text("descargando⌛")
-    tmpdir = tempfile.mkdtemp()
-    opts = {
-        'format': 'best[filesize<1800M]/best',
-        'outtmpl': f'{tmpdir}/%(id)s.%(ext)s',
-        'quiet': True,
-        'noplaylist': False,
-        'merge_output_format': 'mp4',
-    }
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([url])
-        files = glob.glob(f"{tmpdir}/*")
-        for f in files[:5]:
-            with open(f,'rb') as v:
-                await update.message.reply_video(video=v, caption="Aquí tienes 💙")
-        await status.delete()
-    except Exception as e:
-        print(e)
-        await status.edit_text(f"No pude 😅 {e}")
-    finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
+    return "Bot Erome ON"
 
 def run_flask():
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT",10000)))
+    port = int(os.environ.get("PORT", 10000))
+    app_flask.run(host="0.0.0.0", port=port)
 
-threading.Thread(target=run_flask, daemon=True).start()
-app = Application.builder().token(TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, dl))
-print("Bot iniciado")
-app.run_polling()
+async def erome_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    url = update.message.text.strip()
+    
+    if "erome.com" not in url:
+        return
+
+    await update.message.reply_text("⏳ Descargando de Erome...")
+
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            ydl_opts = {
+                'outtmpl': f'{tmp}/%(title)s.%(ext)s',
+                'format': 'best',
+                'quiet': True,
+                'no_warnings': True,
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                file_path = ydl.prepare_filename(info)
+
+            await update.message.reply_video(
+                video=open(file_path, 'rb'),
+                caption="✅ Listo"
+            )
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
+def main():
+    Thread(target=run_flask, daemon=True).start()
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, erome_handler))
+    print("Bot Erome iniciado...")
+    app.run_polling()
+
+if __name__ == '__main__':
+    main()
