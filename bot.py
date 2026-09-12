@@ -1,42 +1,51 @@
-from keep_alive import keep_alive
-keep_alive()
-import os, re, yt_dlp
+import os, re, asyncio
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import yt_dlp
 
 TOKEN = os.getenv("BOT_TOKEN")
-URL_REGEX = r"https?://[^\s]+"
 
-async def start(update, context):
-    await update.message.reply_text("Soy Yolu 💙 Mandame links y te los bajo. Si escribes mp3 te bajo solo audio.")
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Soy Yolu 💙 Mándame un link de YouTube o TikTok y te lo bajo sin marca 🚀")
 
-async def handle(update, context):
-    text = update.message.text or ""
-    urls = re.findall(URL_REGEX, text)
-    if not urls:
-        await update.message.reply_text("Te escucho bro")
+async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    m = re.search(r'https?://\S+', text)
+    if not m:
+        await update.message.reply_text("Mándame un link válido bro 😅")
         return
-    url = urls[0]
-    is_mp3 = "mp3" in text.lower()
-    await update.message.reply_text("Bajando...")
-    try:
-        if is_mp3:
-            opts = {'format':'bestaudio/best','outtmpl':'audio.%(ext)s','postprocessors':[{'key':'FFmpegExtractAudio','preferredcodec':'mp3','preferredquality':'192'}],'quiet':True}
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                ydl.download([url])
-            await update.message.reply_audio(open('audio.mp3','rb'))
-            os.remove('audio.mp3')
-        else:
-            opts = {'outtmpl':'video.%(ext)s','format':'best','quiet':True}
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                file = ydl.prepare_filename(info)
-            await update.message.reply_video(open(file,'rb'))
-            os.remove(file)
-    except Exception as e:
-        await update.message.reply_text(f"Error: {e}")
+    url = m.group(0)
 
-app = ApplicationBuilder().token(TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
-app.run_polling()
+    if "facebook.com" in url or "fb.watch" in url or "instagram.com" in url:
+        await update.message.reply_text("Bro, Meta bloqueó FB e IG en bots 😭\nPero YouTube y TikTok sí sirven al 100%. Mándame uno de esos!")
+        return
+
+    await update.message.reply_text("Bajando... ⏳")
+
+    ydl_opts = {
+        'format': 'best[ext=mp4]/best',
+        'outtmpl': '/tmp/%(id)s.%(ext)s',
+        'quiet': True,
+        'noplaylist': True,
+    }
+
+    try:
+        def run():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                return ydl.prepare_filename(info)
+        file = await asyncio.to_thread(run)
+        with open(file, 'rb') as v:
+            await update.message.reply_video(v, caption="Listo bro 💙 @YoluAiBot")
+        os.remove(file)
+    except Exception as e:
+        await update.message.reply_text(f"No pude con ese link 😅 Prueba con YouTube")
+
+def main():
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download))
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
