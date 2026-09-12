@@ -6,7 +6,7 @@ from threading import Thread
 from flask import Flask
 from bs4 import BeautifulSoup
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
 
 TOKEN = os.getenv("BOT_TOKEN")
 app_flask = Flask(__name__)
@@ -18,6 +18,12 @@ def home():
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app_flask.run(host="0.0.0.0", port=port)
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👋 ¡Hola! Soy Yolu Ai\n\nSolo mándame un link de Erome y te lo descargo.")
+
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("📖 Solo pega el link de Erome aquí y lo bajo.")
 
 def get_medias(url):
     headers = {
@@ -37,7 +43,7 @@ def get_medias(url):
             medias.append(s['src'])
 
     # Metodo 2: Buscar mp4 con regex en todo el html (este es el que funciona)
-    mp4s = re.findall(r'https://[^"\']+\.mp4[^"\']*', html)
+    mp4s = re.findall(r'https://[^"\'"]+\.mp4[^"\'"]*', html)
     medias.extend(mp4s)
 
     # Fotos
@@ -73,7 +79,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 r = requests.get(media_url, headers=headers, stream=True, timeout=90)
 
                 if 'text/html' in r.headers.get('Content-Type',''):
-                    continue # Era una pagina de error, no un video
+                    continue
 
                 ext = ".mp4" if ".mp4" in media_url else ".jpg"
                 with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
@@ -100,6 +106,8 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 if __name__ == "__main__":
     Thread(target=run_flask, daemon=True).start()
     app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handler))
     print("Bot iniciado...")
     app.run_polling()
