@@ -17,14 +17,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     m = re.search(r'https?://\S+', text)
-    if not m:
-        return
+    if not m: return
     url = m.group(0)
-
-    if "facebook.com" in url or "fb.watch" in url or "instagram.com" in url:
-        await update.message.reply_text("FB e IG bloqueados por Meta 😭 Pero YouTube y TikTok sí van!")
-        return
-
     await update.message.reply_text("Bajando... ⏳")
     ydl_opts = {'format': 'best[ext=mp4]/best', 'outtmpl': '/tmp/%(id)s.%(ext)s', 'quiet': True, 'noplaylist': True}
     try:
@@ -35,15 +29,17 @@ async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_video(v, caption="Listo bro 💙")
         os.remove(file)
     except Exception as e:
-        await update.message.reply_text(f"No pude con ese link 😅 prueba otro de YouTube")
+        print(e)
+        await update.message.reply_text("No pude con ese link 😅")
 
-def run_bot():
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    flask_app.run(host="0.0.0.0", port=port)
+
+if __name__ == "__main__":
+    threading.Thread(target=run_flask, daemon=True).start()
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download))
+    print("Bot iniciando polling...")
     app.run_polling()
-
-if __name__ == "__main__":
-    threading.Thread(target=run_bot, daemon=True).start()
-    port = int(os.environ.get("PORT", 10000))
-    flask_app.run(host="0.0.0.0", port=port)
