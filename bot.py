@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 import requests
 from threading import Thread
@@ -19,20 +20,32 @@ def run_flask():
     app_flask.run(host="0.0.0.0", port=port)
 
 def get_medias(url):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    html = requests.get(url, headers=headers, timeout=20).text
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://www.erome.com/",
+        "Accept": "text/html,application/xhtml+xml"
+    }
+    session = requests.Session()
+    html = session.get(url, headers=headers, timeout=20).text
     soup = BeautifulSoup(html, 'html.parser')
     medias = []
+
+    # Metodo 1: tag video
     for v in soup.find_all('video'):
         s = v.find('source')
         if s and s.get('src'):
             medias.append(s['src'])
-        if v.get('src'):
-            medias.append(v.get('src'))
+
+    # Metodo 2: Buscar mp4 con regex en todo el html (este es el que funciona)
+    mp4s = re.findall(r'https://[^"\']+\.mp4[^"\']*', html)
+    medias.extend(mp4s)
+
+    # Fotos
     for img in soup.select('img.img-front'):
         src = img.get('data-src') or img.get('src')
-        if src and src.startswith('http'):
+        if src and src.startswith('http') and 'avatar' not in src:
             medias.append(src)
+
     return list(dict.fromkeys(medias))
 
 async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -40,25 +53,46 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "erome.com/a/" not in text:
         return
     url = text.split()[0]
-    await update.message.reply_text("⏳ Descargando...")
+    await update.message.reply_text("⏳ Bajando video...")
     try:
         medias = get_medias(url)
         if not medias:
-            await update.message.reply_text("❌ No encontre nada")
+            await update.message.reply_text("❌ Privado o borrado")
             return
-        for media_url in medias[:15]:
+
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Referer": "https://www.erome.com/",
+            "Accept": "*/*",
+            "Accept-Language": "en-US,en;q=0.9"
+        }
+
+        for media_url in medias[:10]:
             try:
-                r = requests.get(media_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+                media_url = media_url.replace('\\u002F', '/').replace('\\', '')
+                r = requests.get(media_url, headers=headers, stream=True, timeout=90)
+
+                if 'text/html' in r.headers.get('Content-Type',''):
+                    continue # Era una pagina de error, no un video
+
                 ext = ".mp4" if ".mp4" in media_url else ".jpg"
                 with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-                    tmp.write(r.content)
+                    for chunk in r.iter_content(1024*128):
+                        if chunk:
+                            tmp.write(chunk)
                     path = tmp.name
+
+                if os.path.getsize(path) < 10000:
+                    os.remove(path)
+                    continue
+
                 if ext == ".mp4":
-                    await update.message.reply_video(video=open(path, 'rb'))
+                    await update.message.reply_video(video=open(path,'rb'), supports_streaming=True)
                 else:
-                    await update.message.reply_photo(photo=open(path, 'rb'))
+                    await update.message.reply_photo(photo=open(path,'rb'))
                 os.remove(path)
-            except:
+            except Exception as e:
+                print(f"Error media: {e}")
                 continue
     except Exception as e:
         await update.message.reply_text(f"Error: {e}")
